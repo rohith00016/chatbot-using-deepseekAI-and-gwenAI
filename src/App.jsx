@@ -1,6 +1,8 @@
 import { useState } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { dracula } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 const App = () => {
   const [input, setInput] = useState("");
@@ -8,7 +10,8 @@ const App = () => {
   const [model, setModel] = useState(
     "deepseek/deepseek-r1-distill-llama-70b:free"
   );
-  const [loading, setLoading] = useState(false); 
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(null);
 
   const API_KEY = import.meta.env.VITE_API_KEY;
 
@@ -18,7 +21,7 @@ const App = () => {
     const newMessages = [...messages, { role: "user", content: input }];
     setMessages(newMessages);
     setInput("");
-    setLoading(true); 
+    setLoading(true);
 
     try {
       const response = await axios.post(
@@ -42,15 +45,21 @@ const App = () => {
     } catch (error) {
       console.error("Error fetching response:", error);
     } finally {
-      setLoading(false); 
+      setLoading(false);
     }
+  };
+
+  const handleCopy = (text, index) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(index);
+      setTimeout(() => setCopied(null), 1000);
+    });
   };
 
   return (
     <div className="w-screen h-screen flex items-center justify-center bg-gray-900 text-white">
       {/* Chat Container */}
       <div className="w-full max-w-4xl h-[90vh] flex flex-col bg-gray-800 shadow-lg rounded-lg overflow-hidden">
-       
         <header className="p-4 bg-gray-700 text-center text-lg font-bold">
           Chat with AI
         </header>
@@ -72,13 +81,49 @@ const App = () => {
           {messages.map((msg, index) => (
             <div
               key={index}
-              className={`p-3 rounded-lg max-w-[75%] break-words whitespace-pre-line ${
+              className={`relative p-3 rounded-lg max-w-[75%] break-words whitespace-pre-line ${
                 msg.role === "user"
                   ? "bg-blue-500 text-white self-end"
                   : "bg-gray-700 text-white self-start"
               }`}
             >
-              <ReactMarkdown>{msg.content}</ReactMarkdown>
+              <ReactMarkdown
+                components={{
+                  code({ inline, className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || "");
+                    const codeText = String(children).replace(/\n$/, "");
+
+                    return !inline && match ? (
+                      <div className="relative">
+                        <button
+                          onClick={() => handleCopy(codeText, index)}
+                          className="absolute top-2 right-2 px-2 py-1 bg-gray-800 text-white text-xs rounded border border-gray-600 hover:bg-gray-700"
+                        >
+                          {copied === index ? "Copied!" : "Copy"}
+                        </button>
+                        <SyntaxHighlighter
+                          style={dracula}
+                          language={match[1]}
+                          PreTag="div"
+                          {...props}
+                          className="rounded-lg overflow-hidden"
+                        >
+                          {codeText}
+                        </SyntaxHighlighter>
+                      </div>
+                    ) : (
+                      <code
+                        className="bg-gray-700 px-1 py-0.5 rounded"
+                        {...props}
+                      >
+                        {children}
+                      </code>
+                    );
+                  },
+                }}
+              >
+                {msg.content}
+              </ReactMarkdown>
             </div>
           ))}
           {/* Loading Indicator */}
